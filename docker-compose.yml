@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: task-tracker-db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-tasktracker}
+      POSTGRES_USER: ${DB_USER:-user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+    ports:
+      - "${DB_PORT:-5434}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - tasktracker-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d tasktracker"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    container_name: task-tracker-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-tasktracker}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-user}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-password}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_FLYWAY_ENABLED: "true"
+      JWT_SECRET: ${JWT_SECRET:-fallbackSecretKeyNeedsToBeLongerThan256BitsForHS256}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+    ports:
+      - "${APP_PORT:-8083}:8080"
+    networks:
+      - tasktracker-net
+
+volumes:
+  postgres_data:
+
+networks:
+  tasktracker-net:
+    driver: bridge 
